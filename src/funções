@@ -1,0 +1,12 @@
+
+
+//DESVZ - se Acum vale 0, coloca o valor inst no PC
+void desvZ(int *acum, int *pc, int inst){
+    if(*acum == 0)
+        *pc = inst;
+}
+
+//NEG - inverte o sinal do acumulador (Acum = -Acum)
+void neg(int *acum){
+  *acum = -*acum;
+}
