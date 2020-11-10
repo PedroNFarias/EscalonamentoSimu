@@ -4,11 +4,20 @@
 #include <string.h>
 #include <time.h>
 
-
+#define MEMORIA 20
+#define NORMAL 0
+#define INSTTRUCTILEGAL 1
+#define VIOLATION
+//A estrutura da memória
 typedef struct{
     char inst[10];
     int num;
 } POSMEMORIA_t;
+
+//A estrtura da CPU
+typedef struct{
+    int acum, pc, estado;
+} CPU_t;
 
 void readFile (POSMEMORIA_t *vetMem);
 void cargi(int *acum, int n);
@@ -20,13 +29,15 @@ void soma(int *acum, int n, int *vetData);
 void desvZ(int *acum, int *pc, int inst);
 void neg(int *acum);
 void showCom(POSMEMORIA_t *vetMem);
+void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData);
 
-
+//Função principal
 int main(){
-    int acum, pc;
+    CPU_t cpu;
     int vetData[MEMORIA];
     POSMEMORIA_t *posMemoria;
     readFile(posMemoria);
+    execCom(&cpu,posMemoria,vetData);
 
     return 0;
 }
@@ -61,12 +72,22 @@ void readFile (POSMEMORIA_t *vetMem) {
 //Mostra a lista de comandos
 void showCom(POSMEMORIA_t *vetMem){
     int i = 0;
-    
+
     while(i != 19){
-        printf("\n%s, %i", );
+        printf("\n%s, %i", vetMem->inst, vetMem->num);
     }
 }
-
+//Escolhe o comando a executar
+void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData){
+    if(strcmp("CARGI",vetMem->inst)){
+        printf("Teste");
+        cargi(&cpu->acum, vetMem->num);
+    }else if(strcmp("CARGM",vetMem->inst)){
+        cargm(&cpu->acum, vetMem->num, vetData);
+    }else if(strcmp("CARGX",vetMem->inst)){
+        cargx(&cpu->acum, vetMem->num, vetData);
+    }
+}
 
 //CARGI - coloca o valor n no acumulador (A=n)
 void cargi(int *acum, int n){
