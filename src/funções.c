@@ -4,10 +4,13 @@
 #include <string.h>
 #include <time.h>
 
-#define MEMORIA 20
+#define MEMORIA 100
 #define NORMAL 0
 #define INSTTRUCTILEGAL 1
-#define VIOLATION
+#define VIOLATION 2
+#define READ 3
+#define WRITE 4
+#define STOP 5
 //A estrutura da memória
 typedef struct{
     char inst[10];
@@ -16,8 +19,12 @@ typedef struct{
 
 //A estrtura da CPU
 typedef struct{
-    int acum, pc, estado;
+    int acum, pc;
 } CPU_t;
+
+typedef struct{
+    int estado;
+} ESTADO_t;
 
 void readFile (POSMEMORIA_t *vetMem);
 void cargi(int *acum, int n);
@@ -26,18 +33,20 @@ void cargx(int *acum, int n, int *vetData);
 void armm(int *acum, int n, int *vetData);
 void armx(int *acum, int n, int *vetData);
 void soma(int *acum, int n, int *vetData);
-void desvZ(int *acum, int *pc, int inst);
+void desvZ(int *acum, int *pc, int n);
 void neg(int *acum);
 void showCom(POSMEMORIA_t *vetMem);
 void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData);
+int comInv(POSMEMORIA_t *vetMem);
 
 //Função principal
 int main(){
     CPU_t cpu;
     int vetData[MEMORIA];
-    POSMEMORIA_t *posMemoria;
-    readFile(posMemoria);
-    execCom(&cpu,posMemoria,vetData);
+    POSMEMORIA_t vetMem[MEMORIA];
+    readFile(vetMem);
+    showCom(vetMem);
+    execCom(&cpu,vetMem,vetData);
 
     return 0;
 }
@@ -52,16 +61,9 @@ void readFile (POSMEMORIA_t *vetMem) {
     if (file == NULL) {
         printf("error to load file\n");
     }else {
-        while(fscanf(file,"%s %i", inst, &n)!= EOF){
-            i++;
-        }
-        vetMem = malloc(i * sizeof(POSMEMORIA_t));
-        fclose(file);
-        file = fopen("inst", "r");
         i = 0;
         while(fscanf(file,"%s %i", inst, &n)!= EOF){
-            printf("%s %i\n", inst, n);
-            strcpy(inst,vetMem[i].inst);
+            strcpy(vetMem[i].inst,inst);
             vetMem[i].num = n;
             i++;
         }
@@ -72,20 +74,37 @@ void readFile (POSMEMORIA_t *vetMem) {
 //Mostra a lista de comandos
 void showCom(POSMEMORIA_t *vetMem){
     int i = 0;
-
+    printf("Lendo comandos\n");
     while(i != 19){
-        printf("\n%s, %i", vetMem->inst, vetMem->num);
+        printf("\n%s, %i", vetMem[i].inst, vetMem[i].num);
+        i++;
     }
 }
 //Escolhe o comando a executar
 void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData){
-    if(strcmp("CARGI",vetMem->inst)){
-        printf("Teste");
-        cargi(&cpu->acum, vetMem->num);
-    }else if(strcmp("CARGM",vetMem->inst)){
-        cargm(&cpu->acum, vetMem->num, vetData);
-    }else if(strcmp("CARGX",vetMem->inst)){
-        cargx(&cpu->acum, vetMem->num, vetData);
+    int i = 0;
+    int cont = 0;
+    while(cont == 0){
+        if(!strcmp("CARGI",vetMem[i].inst)){
+            cargi(&cpu->acum, vetMem[i].num);
+        }else if(!strcmp("CARGM",vetMem[i].inst)){
+            cargm(&cpu->acum, vetMem[i].num, vetData);
+        }else if(!strcmp("CARGX",vetMem[i].inst)){
+            cargx(&cpu->acum, vetMem[i].num, vetData);
+        }else if(!strcmp("ARMM", vetMem[i].inst)){
+            armm(&cpu->acum, vetMem[i].num, vetData);
+        }else if(!strcmp("ARMX", vetMem[i].inst)){
+            armx(&cpu->acum, vetMem[i].num, vetData);
+        }else if(!strcmp("SOMA", vetMem[i].inst)){
+            soma(&cpu->acum, vetMem[i].num, vetData);
+        }else if(!strcmp("NEG", vetMem[i].inst)){
+            neg(&cpu->acum);
+        }else if(!strcmp("DESVZ", vetMem[i].inst)){
+            desvZ(&cpu->acum, &cpu->pc, vetMem[i].num);
+        }else{
+            cont++;
+        }
+        i++;
     }
 }
 
@@ -120,9 +139,9 @@ void soma(int *acum, int n, int *vetData){
 }
 
 //DESVZ - se A vale 0, coloca o valor n no PC
-void desvZ(int *acum, int *pc, int inst){
+void desvZ(int *acum, int *pc, int n){
     if(*acum == 0)
-        *pc = inst;
+        *pc = n;
 }
 
 //NEG - inverte o sinal do acumulador (Acum = -Acum)
