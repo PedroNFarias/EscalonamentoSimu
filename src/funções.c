@@ -7,10 +7,13 @@
 #define MEMORIA 100
 #define NORMAL 0
 #define INSTTRUCTILEGAL 1
-#define VIOLATION 2
+#define MEMORYVIOLATION 2
 #define READ 3
 #define WRITE 4
 #define STOP 5
+#define PC 0
+#define ACUM 1
+
 //A estrutura da memória
 typedef struct{
     char inst[10];
@@ -27,26 +30,43 @@ typedef struct{
 } ESTADO_t;
 
 void readFile (POSMEMORIA_t *vetMem);
-void cargi(int *acum, int n);
-void cargm(int *acum, int n, int *vetData);
-void cargx(int *acum, int n, int *vetData);
-void armm(int *acum, int n, int *vetData);
-void armx(int *acum, int n, int *vetData);
-void soma(int *acum, int n, int *vetData);
-void desvZ(int *acum, int *pc, int n);
-void neg(int *acum);
+void cargi(CPU_t *cpu, int n);
+void cargm(CPU_t *cpu, int n, int *vetData);
+void cargx(CPU_t *cpu, int n, int *vetData);
+void armm(CPU_t *cpu, int n, int *vetData);
+void armx(CPU_t *cpu, int n, int *vetData);
+void soma(CPU_t *cpu, int n, int *vetData);
+void desvZ(CPU_t *cpu, int n);
+void neg(CPU_t *cpu);
 void showCom(POSMEMORIA_t *vetMem);
-void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData);
+void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData);
 int comInv(POSMEMORIA_t *vetMem);
+void inicializarCPU(CPU_t *cpu, ESTADO_t *estado);
+void estadoNormal(ESTADO_t *estado);
+POSMEMORIA_t *returnPC(CPU_t *cpu, POSMEMORIA_t *vetMen);
+void alterarRegistradores(CPU_t *cpu, int valor, int reg);
+void retornaRegistadores(CPU_t *cpu);
+void readInterruption(ESTADO_t *estado);
+
+//alterar o conteúdo da memória de programa (recebe um vetor de strings)
+//alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
+//obter o conteúdo da memória de dados (retorna um vetor de inteiros que é o conteúdo atual da memória – não precisa desta função caso o vetor passado pela função acima seja alterado “in loco”)
 
 //Função principal
 int main(){
     CPU_t cpu;
     int vetData[MEMORIA];
     POSMEMORIA_t vetMem[MEMORIA];
+    ESTADO_t estado;
+
+    inicializarCPU(&cpu, &estado);
     readFile(vetMem);
     showCom(vetMem);
-    execCom(&cpu,vetMem,vetData);
+    execCom(&cpu,vetMem,&estado,vetData);
+    readInterruption(&estado);
+
+    POSMEMORIA_t *instTmp;
+    instTmp = returnPC(&cpu, vetMem);
 
     return 0;
 }
@@ -81,71 +101,126 @@ void showCom(POSMEMORIA_t *vetMem){
     }
 }
 //Escolhe o comando a executar
-void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, int *vetData){
-    int i = 0;
+void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData){
     int cont = 0;
-    while(cont == 0){
-        if(!strcmp("CARGI",vetMem[i].inst)){
-            cargi(&cpu->acum, vetMem[i].num);
-        }else if(!strcmp("CARGM",vetMem[i].inst)){
-            cargm(&cpu->acum, vetMem[i].num, vetData);
-        }else if(!strcmp("CARGX",vetMem[i].inst)){
-            cargx(&cpu->acum, vetMem[i].num, vetData);
-        }else if(!strcmp("ARMM", vetMem[i].inst)){
-            armm(&cpu->acum, vetMem[i].num, vetData);
-        }else if(!strcmp("ARMX", vetMem[i].inst)){
-            armx(&cpu->acum, vetMem[i].num, vetData);
-        }else if(!strcmp("SOMA", vetMem[i].inst)){
-            soma(&cpu->acum, vetMem[i].num, vetData);
-        }else if(!strcmp("NEG", vetMem[i].inst)){
-            neg(&cpu->acum);
-        }else if(!strcmp("DESVZ", vetMem[i].inst)){
-            desvZ(&cpu->acum, &cpu->pc, vetMem[i].num);
-        }else{
-            cont++;
+    while(estado == NORMAL){
+        if(cpu->pc > MEMORIA){
+            estado->estado = MEMORYVIOLATION;
+            return;
         }
-        i++;
+        if(!strcmp("CARGI",vetMem[cpu->pc].inst)){
+            cargi(cpu, vetMem[cpu->pc].num);
+        }else if(!strcmp("CARGM",vetMem[cpu->pc].inst)){
+            cargm(cpu, vetMem[cpu->pc].num, vetData);
+        }else if(!strcmp("CARGX",vetMem[cpu->pc].inst)){
+            cargx(cpu, vetMem[cpu->pc].num, vetData);
+        }else if(!strcmp("ARMM", vetMem[cpu->pc].inst)){
+            armm(cpu, vetMem[cpu->pc].num, vetData);
+        }else if(!strcmp("ARMX", vetMem[cpu->pc].inst)){
+            armx(cpu, vetMem[cpu->pc].num, vetData);
+        }else if(!strcmp("SOMA", vetMem[cpu->pc].inst)){
+            soma(cpu, vetMem[cpu->pc].num, vetData);
+        }else if(!strcmp("NEG", vetMem[cpu->pc].inst)){
+            neg(cpu);
+        }else if(!strcmp("DESVZ", vetMem[cpu->pc].inst)){
+            desvZ(cpu, vetMem[cpu->pc].num);
+        }else{
+            if(!strcmp("PARA", vetMem[cpu->pc].inst)){
+                estado->estado = NORMAL;
+                return;
+            }else{
+                estado->estado = INSTTRUCTILEGAL;
+                return;
+            }
+        }
+        cpu->pc++;
     }
 }
 
+//inicializa a CPU com os valores básicos
+void inicializarCPU(CPU_t *cpu, ESTADO_t *estado){
+    cpu->acum = 0;
+    cpu->pc = 0;
+    estado->estado = NORMAL;
+}
+
+//Altera o estado da CPU para normal
+void estadoNormal(ESTADO_t *estado){
+    estado->estado = NORMAL;
+}
+
 //CARGI - coloca o valor n no acumulador (A=n)
-void cargi(int *acum, int n){
-    *acum = n;
+void cargi(CPU_t *cpu, int n){
+    cpu->acum = n;
 }
 
 //CARGM - coloca no acumulador o valor na posição n da memória de dados (A=M[n])
-void cargm(int *acum, int n, int *vetData){
-    *acum = vetData[n];
+void cargm(CPU_t *cpu, int n, int *vetData){
+    cpu->acum = vetData[n];
 }
 
 //CARGX - coloca no acumulador o valor na posição que está na posição n da memória de dados (A=M[M[n]])
-void cargx(int *acum, int n, int *vetData){
-    *acum = vetData[n];
+void cargx(CPU_t *cpu, int n, int *vetData){
+    cpu->acum = vetData[n];
 }
 
 //ARMM - coloca o valor do acumulador na posição n da memória de dados (M[n]=A)
-void armm(int *acum, int n, int *vetData){
-    vetData[n] = *acum;
+void armm(CPU_t *cpu, int n, int *vetData){
+    vetData[n] = cpu->acum;
 }
 
 //ARMX - coloca o valor do acumulador posição que está na posição n da memória de dados (M[M[n]]=A)
-void armx(int *acum, int n, int *vetData){
+void armx(CPU_t *cpu, int n, int *vetData){
 
 }
 
 //SOMA - soma ao acumulador o valor no endereço n da memória de dados (A=A+M[n])
-void soma(int *acum, int n, int *vetData){
-    *acum = *acum + vetData[n];
+void soma(CPU_t *cpu, int n, int *vetData){
+    cpu->acum = cpu->acum + vetData[n];
 }
 
 //DESVZ - se A vale 0, coloca o valor n no PC
-void desvZ(int *acum, int *pc, int n){
-    if(*acum == 0)
-        *pc = n;
+void desvZ(CPU_t *cpu, int n){
+    if(cpu->acum == 0)
+        cpu->pc = n;
 }
 
 //NEG - inverte o sinal do acumulador (Acum = -Acum)
-void neg(int *acum){
-  *acum = -*acum;
+void neg(CPU_t *cpu){
+  cpu->acum = -cpu->acum;
 }
 
+//Retorna Instrução em PC
+POSMEMORIA_t *returnPC(CPU_t *cpu, POSMEMORIA_t *vetMen){
+    if(cpu->pc > MEMORIA)
+        return NULL;
+    return &vetMen[cpu->pc];
+}
+
+//Alterar registradores da CPU
+void alterarRegistradores(CPU_t *cpu, int valor, int reg){
+    if(reg == PC)
+        cpu->pc = valor;
+    else if(reg == ACUM)
+        cpu->acum = valor;
+}
+
+void retornaRegistradores(CPU_t *cpu){
+    printf("\nPC = %i, Acumulador = %i", cpu->pc, cpu->acum);
+}
+
+void readInterruption(ESTADO_t *estado){
+    printf("\n");
+    if(estado->estado == NORMAL)
+        printf("Estado normal");
+    else if(estado->estado == INSTTRUCTILEGAL)
+        printf("Instrução ilegal");
+    else if(estado->estado == MEMORYVIOLATION)
+        printf("Violação de memória");
+    else if(estado->estado == READ)
+        printf("Modo leitura");
+    else if(estado->estado == WRITE)
+        printf("Modo escrita");
+    else if(estado->estado == STOP)
+        printf("Modo parada");
+}
