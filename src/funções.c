@@ -61,7 +61,6 @@ int main(){
 
     inicializarCPU(&cpu, &estado);
     readFile(vetMem);
-    showCom(vetMem);
     execCom(&cpu,vetMem,&estado,vetData);
     readInterruption(&estado);
 
@@ -103,7 +102,8 @@ void showCom(POSMEMORIA_t *vetMem){
 //Escolhe o comando a executar
 void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData){
     int cont = 0;
-    while(estado == NORMAL){
+    
+    while(estado->estado == NORMAL){
         if(cpu->pc > MEMORIA){
             estado->estado = MEMORYVIOLATION;
             return;
@@ -127,6 +127,7 @@ void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData){
         }else{
             if(!strcmp("PARA", vetMem[cpu->pc].inst)){
                 estado->estado = NORMAL;
+                showCom(vetMem);
                 return;
             }else{
                 estado->estado = INSTTRUCTILEGAL;
@@ -205,6 +206,7 @@ void alterarRegistradores(CPU_t *cpu, int valor, int reg){
         cpu->acum = valor;
 }
 
+//Retorna os valores dos registradores
 void retornaRegistradores(CPU_t *cpu){
     printf("\nPC = %i, Acumulador = %i", cpu->pc, cpu->acum);
 }
@@ -223,4 +225,9 @@ void readInterruption(ESTADO_t *estado){
         printf("Modo escrita");
     else if(estado->estado == STOP)
         printf("Modo parada");
+}
+
+//alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
+void changeMemData(int *vetData){
+
 }
