@@ -11,6 +11,8 @@
 #define READ 3
 #define WRITE 4
 #define STOP 5
+#define PERIODICA 6
+#define APERIODICA 7
 #define PC 0
 #define ACUM 1
 
@@ -29,6 +31,13 @@ typedef struct{
     int estado;
 } ESTADO_t;
 
+typedef struct{
+    int timer;
+    int vetInterrupcaoDate[MEMORIA];
+    int vetInterrupcaoMotivo[MEMORIA];
+    int ultimaInterrupcao;
+ } TIMER_t;
+
 int readFile (POSMEMORIA_t *vetMem);
 void cargi(CPU_t *cpu, int n);
 void cargm(CPU_t *cpu, int n, int *vetData);
@@ -39,7 +48,8 @@ void soma(CPU_t *cpu, int n, int *vetData);
 void desvZ(CPU_t *cpu, int n);
 void neg(CPU_t *cpu);
 void showCom(POSMEMORIA_t *vetMem);
-void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN);
+void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer);
+void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN);
 int comInv(POSMEMORIA_t *vetMem);
 void inicializarCPU(CPU_t *cpu, ESTADO_t *estado);
 void estadoNormal(ESTADO_t *estado);
@@ -52,6 +62,13 @@ void changeMemData(int *vetData, int *tempData, int tamVet, int *lastN);
 ////////////////////////Segunda parte
 void leituraES(CPU_t *cpu);
 void gravacaoES(CPU_t *cpu);
+///////////timer
+void criarTimer(TIMER_t *timer);
+void incrementaTimer(TIMER_t *timer);
+int retornaTimer(TIMER_t *timer);
+void inicializarVetInterrupcao(TIMER_t *timer);
+void adicionarInterrupcao(TIMER_t *timer, int date, int motivo);
+int gerarInterrupcao(TIMER_t *timer);
 
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
@@ -64,15 +81,23 @@ int main(){
     int vetData[MEMORIA], lastN = 0;
     POSMEMORIA_t vetMem[MEMORIA];
     ESTADO_t estado;
+    TIMER_t timer;
 
     inicializarCPU(&cpu, &estado);
+    criarTimer(&timer);
     readFile(vetMem);
-    execCom(&cpu,vetMem,&estado,vetData, &lastN);
-    readInterruption(&estado);
-    
+    OS(&cpu,vetMem,&estado,vetData, &lastN, &timer);
+
+    //Retorna as instrução apontada
     POSMEMORIA_t *instTmp;
     instTmp = returnPC(&cpu, vetMem);
+    //Testa se está gravando a ultima posição da memória de dados
     printf("\n Ultima mémoria de dados acessada = %i\n", lastN);
+    //testa se o leitor de ES tá funcionando
+    leituraES(&cpu);
+    printf("Teste se o valor de cpu->acum é o do arquivo ES %i\n", cpu.acum);
+    cpu.acum = 90;
+    gravacaoES(&cpu);
 
     return 0;
 }
@@ -108,41 +133,45 @@ void showCom(POSMEMORIA_t *vetMem){
 }
 
 //Escolhe o comando a executar e executa até ocorrer uma interrupção
-void execCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN){
-    int cont = 0;
-    
+void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer){
+
     while(estado->estado == NORMAL){
-        if(cpu->pc > MEMORIA){
-            estado->estado = MEMORYVIOLATION;
+        lerCom(cpu, vetMem, estado, vetData, lastN);
+        cpu->pc++;
+        incrementaTimer(timer);
+    }
+    readInterruption(&estado);
+}
+
+void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN){
+    if(cpu->pc > MEMORIA){
+        estado->estado = MEMORYVIOLATION;
+        return;
+    }
+    if(!strcmp("CARGI",vetMem[cpu->pc].inst)){
+        cargi(cpu, vetMem[cpu->pc].num);
+    }else if(!strcmp("CARGM",vetMem[cpu->pc].inst)){
+        cargm(cpu, vetMem[cpu->pc].num, vetData);
+    }else if(!strcmp("CARGX",vetMem[cpu->pc].inst)){
+        cargx(cpu, vetMem[cpu->pc].num, vetData);
+    }else if(!strcmp("ARMM", vetMem[cpu->pc].inst)){
+        armm(cpu, vetMem[cpu->pc].num, vetData, lastN);
+    }else if(!strcmp("ARMX", vetMem[cpu->pc].inst)){
+        armx(cpu, vetMem[cpu->pc].num, vetData, lastN);
+    }else if(!strcmp("SOMA", vetMem[cpu->pc].inst)){
+        soma(cpu, vetMem[cpu->pc].num, vetData);
+    }else if(!strcmp("NEG", vetMem[cpu->pc].inst)){
+        neg(cpu);
+    }else if(!strcmp("DESVZ", vetMem[cpu->pc].inst)){
+        desvZ(cpu, vetMem[cpu->pc].num);
+    }else{
+        if(!strcmp("PARA", vetMem[cpu->pc].inst)){
+            estado->estado = STOP;
+            return;
+        }else{
+            estado->estado = INSTTRUCTILEGAL;
             return;
         }
-        if(!strcmp("CARGI",vetMem[cpu->pc].inst)){
-            cargi(cpu, vetMem[cpu->pc].num);
-        }else if(!strcmp("CARGM",vetMem[cpu->pc].inst)){
-            cargm(cpu, vetMem[cpu->pc].num, vetData);
-        }else if(!strcmp("CARGX",vetMem[cpu->pc].inst)){
-            cargx(cpu, vetMem[cpu->pc].num, vetData);
-        }else if(!strcmp("ARMM", vetMem[cpu->pc].inst)){
-            armm(cpu, vetMem[cpu->pc].num, vetData, lastN);
-        }else if(!strcmp("ARMX", vetMem[cpu->pc].inst)){
-            armx(cpu, vetMem[cpu->pc].num, vetData, lastN);
-        }else if(!strcmp("SOMA", vetMem[cpu->pc].inst)){
-            soma(cpu, vetMem[cpu->pc].num, vetData);
-        }else if(!strcmp("NEG", vetMem[cpu->pc].inst)){
-            neg(cpu);
-        }else if(!strcmp("DESVZ", vetMem[cpu->pc].inst)){
-            desvZ(cpu, vetMem[cpu->pc].num);
-        }else{
-            if(!strcmp("PARA", vetMem[cpu->pc].inst)){
-                estado->estado = STOP;
-                showCom(vetMem);
-                return;
-            }else{
-                estado->estado = INSTTRUCTILEGAL;
-                return;
-            }
-        }
-        cpu->pc++;
     }
 }
 
@@ -285,4 +314,40 @@ void gravacaoES(CPU_t *cpu){
     }else{
         fprintf(file, "%i", cpu->acum);
     }
+}
+
+//Timer
+void criarTimer(TIMER_t *timer){
+    timer->timer = 0;
+    inicializarVetInterrupcao(timer);
+}
+
+void incrementaTimer(TIMER_t *timer){
+    timer->timer++;
+}
+
+int retornaTimer(TIMER_t *timer){
+    return timer->timer;
+}
+
+void inicializarVetInterrupcao(TIMER_t *timer){
+    timer->ultimaInterrupcao = 0;
+}
+
+void adicionarInterrupcao(TIMER_t *timer, int date, int motivo){
+    timer->vetInterrupcaoDate[timer->ultimaInterrupcao] = date;
+    timer->vetInterrupcaoMotivo[timer->ultimaInterrupcao] = motivo;
+    timer->ultimaInterrupcao++;
+}
+
+int gerarInterrupcao(TIMER_t *timer){
+    int i = 0;
+
+    while(i <= timer->ultimaInterrupcao){
+        if(timer->timer == timer->vetInterrupcaoDate[i]){
+            return timer->vetInterrupcaoMotivo[i];
+        }
+        i++;
+    }
+    return NORMAL;
 }
