@@ -46,8 +46,13 @@ void estadoNormal(ESTADO_t *estado);
 POSMEMORIA_t *returnPC(CPU_t *cpu, POSMEMORIA_t *vetMen);
 void alterarRegistradores(CPU_t *cpu, int valor, int reg);
 void retornaRegistadores(CPU_t *cpu);
+int retornaAcum(CPU_t *cpu);
 void readInterruption(ESTADO_t *estado);
 void changeMemData(int *vetData, int *tempData, int tamVet, int *lastN);
+////////////////////////Segunda parte
+void leituraES(CPU_t *cpu);
+void gravacaoES(CPU_t *cpu);
+
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
 //alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
@@ -248,3 +253,36 @@ void changeMemData(int *vetData, int *tempData, int tamVet, int *lastN){
 }
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
+
+//retorna acumulador
+int retornaAcum(CPU_t *cpu){
+    return cpu->acum;
+}
+
+//SEGUNDA PARTE
+//Ler
+void leituraES(CPU_t *cpu){
+    FILE *file;
+    int n;
+    file = fopen("ES","r");
+    if (file == NULL) {
+        printf("\nerror to load file\n");
+    }else {
+        while(fscanf(file,"%i", &n)!= EOF){
+            cpu->acum = n;
+        }
+    fclose(file);
+    }
+}
+
+//Gravar
+void gravacaoES(CPU_t *cpu){
+    FILE *file;
+
+    file = fopen("ES", "w");
+    if (file == NULL){
+        printf("\nerror to load file\n");
+    }else{
+        fprintf(file, "%i", cpu->acum);
+    }
+}
