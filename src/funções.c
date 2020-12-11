@@ -13,6 +13,8 @@
 #define STOP 5
 #define PERIODICA 6
 #define APERIODICA 7
+#define DORMINDO 8
+#define DESLIGADO 9
 #define PC 0
 #define ACUM 1
 
@@ -94,10 +96,6 @@ int main(){
     //Testa se está gravando a ultima posição da memória de dados
     printf("\n Ultima mémoria de dados acessada = %i\n", lastN);
     //testa se o leitor de ES tá funcionando
-    leituraES(&cpu);
-    printf("Teste se o valor de cpu->acum é o do arquivo ES %i\n", cpu.acum);
-    cpu.acum = 90;
-    gravacaoES(&cpu);
 
     return 0;
 }
@@ -135,12 +133,14 @@ void showCom(POSMEMORIA_t *vetMem){
 //Escolhe o comando a executar e executa até ocorrer uma interrupção
 void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer){
 
-    while(estado->estado == NORMAL){
-        lerCom(cpu, vetMem, estado, vetData, lastN);
-        cpu->pc++;
+    while(estado->estado != DESLIGADO){
+        while(estado->estado == NORMAL){
+            lerCom(cpu, vetMem, estado, vetData, lastN);
+            cpu->pc++;
+            readInterruption(estado);
+        }
         incrementaTimer(timer);
     }
-    readInterruption(&estado);
 }
 
 void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN){
@@ -167,6 +167,14 @@ void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, in
     }else{
         if(!strcmp("PARA", vetMem[cpu->pc].inst)){
             estado->estado = STOP;
+            return;
+        }else if(!strcmp("LER", vetMem[cpu->pc].inst)){
+            estado->estado = READ;
+            leituraES(cpu);
+            return;
+        }else if(!strcmp("GRAVAR", vetMem[cpu->pc].inst)){
+            estado->estado = WRITE;
+            gravacaoES(cpu);
             return;
         }else{
             estado->estado = INSTTRUCTILEGAL;
@@ -232,6 +240,11 @@ void desvZ(CPU_t *cpu, int n){
 //NEG - inverte o sinal do acumulador (Acum = -Acum)
 void neg(CPU_t *cpu){
   cpu->acum = -cpu->acum;
+}
+
+//DORMINDO - coloca o estado em dormencia
+void sleep(ESTADO_t *estado){
+    estado->estado = DORMINDO;
 }
 
 //Retorna Instrução em PC
@@ -334,7 +347,7 @@ void inicializarVetInterrupcao(TIMER_t *timer){
     timer->ultimaInterrupcao = 0;
 }
 
-void adicionarInterrupcao(TIMER_t *timer, int date, int motivo){
+void timerAdicionarInterrupcao(TIMER_t *timer, int date, int motivo){
     timer->vetInterrupcaoDate[timer->ultimaInterrupcao] = date;
     timer->vetInterrupcaoMotivo[timer->ultimaInterrupcao] = motivo;
     timer->ultimaInterrupcao++;
