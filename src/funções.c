@@ -40,7 +40,7 @@ typedef struct{
     int ultimaInterrupcao;
  } TIMER_t;
 
-int readFile (POSMEMORIA_t *vetMem);
+int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq);
 void cargi(CPU_t *cpu, int n);
 void cargm(CPU_t *cpu, int n, int *vetData);
 void cargx(CPU_t *cpu, int n, int *vetData);
@@ -49,7 +49,7 @@ void armx(CPU_t *cpu, int n, int *vetData, int *lastN);
 void soma(CPU_t *cpu, int n, int *vetData);
 void desvZ(CPU_t *cpu, int n);
 void neg(CPU_t *cpu);
-void showCom(POSMEMORIA_t *vetMem);
+void showCom(POSMEMORIA_t *vetMem, int lastVetMem);
 void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer);
 void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN);
 int comInv(POSMEMORIA_t *vetMem);
@@ -80,14 +80,20 @@ int gerarInterrupcao(TIMER_t *timer);
 //Função principal
 int main(){
     CPU_t cpu;
-    int vetData[MEMORIA], lastN = 0;
+    int vetData[MEMORIA], lastN = 0, lastVetMem = 0;
     POSMEMORIA_t vetMem[MEMORIA];
     ESTADO_t estado;
     TIMER_t timer;
+    char arq1[10], arq2[10], arq3[10];
+    strcpy(arq1, "inst1");
+    strcpy(arq2, "inst2");
+    strcpy(arq3, "inst3");
 
     inicializarCPU(&cpu, &estado);
     criarTimer(&timer);
-    readFile(vetMem);
+    readFile(vetMem, &lastVetMem, arq1);
+    readFile(vetMem, &lastVetMem, arq2);
+    showCom(vetMem, lastVetMem);
     OS(&cpu,vetMem,&estado,vetData, &lastN, &timer);
 
     //Retorna as instrução apontada
@@ -101,16 +107,15 @@ int main(){
 }
 
 //Função que lê um arquivo
-int readFile (POSMEMORIA_t *vetMem) {
-    int i = 0;
+int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq) {
+    int i = *lastVetMem;
     FILE *file;
     char inst[10];
     int n;
-    file = fopen("inst","r");
+    file = fopen(arq,"r");
     if (file == NULL) {
         printf("error to load file\n");
     }else {
-        i = 0;
         while(fscanf(file,"%s %i", inst, &n)!= EOF){
             strcpy(vetMem[i].inst,inst);
             vetMem[i].num = n;
@@ -118,13 +123,14 @@ int readFile (POSMEMORIA_t *vetMem) {
         }
     fclose(file);
     }
+    *lastVetMem = i;
 }
 
-//Mostra a lista de comandos
-void showCom(POSMEMORIA_t *vetMem){
+//Mostra a lista de comandos, 
+void showCom(POSMEMORIA_t *vetMem, int lastVetMen){
     int i = 0;
     printf("Lendo comandos\n");
-    while(i != 19){
+    while(i != lastVetMen){
         printf("\n%s, %i", vetMem[i].inst, vetMem[i].num);
         i++;
     }
@@ -134,10 +140,13 @@ void showCom(POSMEMORIA_t *vetMem){
 void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer){
 
     while(estado->estado != DESLIGADO){
-        while(estado->estado == NORMAL){
+        if(estado->estado == NORMAL){
             lerCom(cpu, vetMem, estado, vetData, lastN);
             cpu->pc++;
+        }
+        if(estado->estado != NORMAL){
             readInterruption(estado);
+            tratarInterrupcao(estado);
         }
         incrementaTimer(timer);
     }
