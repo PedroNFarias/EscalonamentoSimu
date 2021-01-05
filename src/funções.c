@@ -15,6 +15,7 @@
 #define APERIODICA 7
 #define DORMINDO 8
 #define DESLIGADO 9
+#define INTERRUPCAOFALSE 10
 #define PC 0
 #define ACUM 1
 
@@ -39,6 +40,11 @@ typedef struct{
     int vetInterrupcaoMotivo[MEMORIA];
     int ultimaInterrupcao;
  } TIMER_t;
+
+ typedef struct{
+     int posicao;
+     float prioridade;
+ } DESCRITOR_t;
 
 int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq);
 void cargi(CPU_t *cpu, int n);
@@ -71,7 +77,8 @@ int retornaTimer(TIMER_t *timer);
 void inicializarVetInterrupcao(TIMER_t *timer);
 void adicionarInterrupcao(TIMER_t *timer, int date, int motivo);
 int gerarInterrupcao(TIMER_t *timer);
-
+//interrupções
+void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado);
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
 //alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
@@ -143,10 +150,9 @@ void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *l
         if(estado->estado == NORMAL){
             lerCom(cpu, vetMem, estado, vetData, lastN);
             cpu->pc++;
-        }
-        if(estado->estado != NORMAL){
+        }else{
             readInterruption(estado);
-            tratarInterrupcao(estado);
+            //tratarInterrupcao(estado);
         }
         incrementaTimer(timer);
     }
@@ -179,11 +185,9 @@ void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, in
             return;
         }else if(!strcmp("LER", vetMem[cpu->pc].inst)){
             estado->estado = READ;
-            leituraES(cpu);
             return;
         }else if(!strcmp("GRAVAR", vetMem[cpu->pc].inst)){
             estado->estado = WRITE;
-            gravacaoES(cpu);
             return;
         }else{
             estado->estado = INSTTRUCTILEGAL;
@@ -371,5 +375,27 @@ int gerarInterrupcao(TIMER_t *timer){
         }
         i++;
     }
-    return NORMAL;
+    return INTERRUPCAOFALSE;
 }
+
+//Interrupções
+void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado){
+    if(estado->estado == WRITE){
+        gravacaoES(cpu);
+        //bloquerProcesso();
+        //escolherProcesso();
+    }else if(estado->estado == READ){
+        leituraES(cpu);
+        //bloquerProcesso();
+        //escolherProcesso();
+    }else if(estado->estado == STOP){
+        //escolherProcesso();
+        //bloquerProcesso();
+    }else if(estado->estado == MEMORYVIOLATION){
+        //escolherProcesso();
+    }else if(estado->estado == DORMINDO){
+        sleep(estado);
+        //setarAcordar();
+    }
+}
+//Descritor de processos
