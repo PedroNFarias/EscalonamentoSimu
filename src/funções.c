@@ -39,14 +39,15 @@ typedef struct{
     int vetInterrupcaoDate[MEMORIA];
     int vetInterrupcaoMotivo[MEMORIA];
     int ultimaInterrupcao;
- } TIMER_t;
+} TIMER_t;
 
- typedef struct{
-     int posicao;
-     float prioridade;
- } DESCRITOR_t;
+typedef struct{
+    int posicao[50];
+    float prioridade[50];
+    int ultimaPos;
+} DESCRITOR_t;
 
-int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq);
+int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq, DESCRITOR_t *descritor);
 void cargi(CPU_t *cpu, int n);
 void cargm(CPU_t *cpu, int n, int *vetData);
 void cargx(CPU_t *cpu, int n, int *vetData);
@@ -79,6 +80,9 @@ void adicionarInterrupcao(TIMER_t *timer, int date, int motivo);
 int gerarInterrupcao(TIMER_t *timer);
 //interrupções
 void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado);
+//tabela de processos
+void iniciarTabelaDeProcessos(DESCRITOR_t *descritor);
+void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prioridade);
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
 //alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
@@ -91,6 +95,7 @@ int main(){
     POSMEMORIA_t vetMem[MEMORIA];
     ESTADO_t estado;
     TIMER_t timer;
+    DESCRITOR_t descritor;
     char arq1[10], arq2[10], arq3[10];
     strcpy(arq1, "inst1");
     strcpy(arq2, "inst2");
@@ -98,8 +103,9 @@ int main(){
 
     inicializarCPU(&cpu, &estado);
     criarTimer(&timer);
-    readFile(vetMem, &lastVetMem, arq1);
-    readFile(vetMem, &lastVetMem, arq2);
+    iniciarTabelaDeProcessos(&descritor);
+    readFile(vetMem, &lastVetMem, arq1, &descritor);
+    readFile(vetMem, &lastVetMem, arq2, &descritor);
     showCom(vetMem, lastVetMem);
     OS(&cpu,vetMem,&estado,vetData, &lastN, &timer);
 
@@ -114,7 +120,7 @@ int main(){
 }
 
 //Função que lê um arquivo
-int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq) {
+int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq, DESCRITOR_t *descritor){
     int i = *lastVetMem;
     FILE *file;
     char inst[10];
@@ -130,6 +136,7 @@ int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq) {
         }
     fclose(file);
     }
+    adicionarTabelaDeProcessos(descritor, i, 0.5);
     *lastVetMem = i;
 }
 
@@ -399,3 +406,11 @@ void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado){
     }
 }
 //Descritor de processos
+void iniciarTabelaDeProcessos(DESCRITOR_t *descritor){
+    descritor->ultimaPos = 0;
+}
+void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prioridade){
+    descritor->posicao[descritor->ultimaPos] = posicao;
+    descritor->prioridade[descritor->ultimaPos] = prioridade;
+    descritor->ultimaPos++;
+}
