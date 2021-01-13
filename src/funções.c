@@ -44,20 +44,22 @@ typedef struct{
 } TIMER_t;
 
 typedef struct{
+    int tempoDeBloqueio;
+    int tempoADesbloquear;
+} BLOQUEIO_t;
+
+typedef struct{
     int posicao[MEMORIA];
     float prioridade[MEMORIA];
-    int ultimaPosMemoria[MEMORIA];
+    int ultimaPosMemoria[MEMORIA]; //primeira posição de memória do programa de acordo com seu numero
     int tempoDeExec[MEMORIA];
     bool bloqueado[MEMORIA];
     BLOQUEIO_t bloqueioDados[MEMORIA];
     int processoEmExec;
-    int ultimaPos;
+    int ultimaPos; //ultima posição de memória alocada com instruções
+    bool finalizado[MEMORIA];
 } DESCRITOR_t;
 
-typedef struct{
-    int tempoDeBloqueio;
-    int tempoADesbloquear;
-} BLOQUEIO_t;
 
 int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq, DESCRITOR_t *descritor);
 void cargi(CPU_t *cpu, int n);
@@ -69,7 +71,7 @@ void soma(CPU_t *cpu, int n, int *vetData);
 void desvZ(CPU_t *cpu, int n);
 void neg(CPU_t *cpu);
 void showCom(POSMEMORIA_t *vetMem, int lastVetMem);
-void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer);
+void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer, DESCRITOR_t *descritor);
 void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN);
 int comInv(POSMEMORIA_t *vetMem);
 void inicializarCPU(CPU_t *cpu, ESTADO_t *estado);
@@ -91,12 +93,12 @@ void inicializarVetInterrupcao(TIMER_t *timer);
 void adicionarInterrupcao(TIMER_t *timer, int date, int motivo);
 int gerarInterrupcao(TIMER_t *timer);
 //interrupções
-void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor);
+void tratarInterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor, TIMER_t *timer);
 //tabela de processos
 void iniciarTabelaDeProcessos(DESCRITOR_t *descritor);
 void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prioridade);
 void recalcularPrioridade(DESCRITOR_t *decritor);
-int escolherProcesso(DESCRITOR_t *descritor);
+int escolherProcesso(DESCRITOR_t *descritor, ESTADO_t *estado);
 void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t *timer);
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
@@ -111,18 +113,23 @@ int main(){
     ESTADO_t estado;
     TIMER_t timer;
     DESCRITOR_t descritor;
-    char arq1[10], arq2[10], arq3[10];
+    char arq1[10], arq2[10], arq3[10], arq4[10], arq5[10];
     strcpy(arq1, "inst1");
     strcpy(arq2, "inst2");
     strcpy(arq3, "inst3");
+    strcpy(arq4, "inst4");
+    strcpy(arq5, "inst5");
 
     inicializarCPU(&cpu, &estado);
     criarTimer(&timer);
     iniciarTabelaDeProcessos(&descritor);
     readFile(vetMem, &lastVetMem, arq1, &descritor);
     readFile(vetMem, &lastVetMem, arq2, &descritor);
+    readFile(vetMem, &lastVetMem, arq3, &descritor);
+    readFile(vetMem, &lastVetMem, arq4, &descritor);
+    readFile(vetMem, &lastVetMem, arq5, &descritor);
     showCom(vetMem, lastVetMem);
-    OS(&cpu,vetMem,&estado,vetData, &lastN, &timer);
+    OS(&cpu,vetMem,&estado,vetData, &lastN, &timer, &descritor);
 
     //Retorna as instrução apontada
     POSMEMORIA_t *instTmp;
@@ -166,18 +173,20 @@ void showCom(POSMEMORIA_t *vetMem, int lastVetMen){
 }
 
 //Escolhe o comando a executar e executa até ocorrer uma interrupção
-void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer){
+void OS(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN, TIMER_t *timer, DESCRITOR_t *descritor){
 
     while(estado->estado != DESLIGADO){
+        printf("\nPC = %i", cpu->pc);
         if(estado->estado == NORMAL){
             lerCom(cpu, vetMem, estado, vetData, lastN);
             cpu->pc++;
         }else{
             readInterruption(estado);
-            //tratarInterrupcao(estado);
+            tratarInterrupcao(cpu, estado, descritor, timer);
         }
         incrementaTimer(timer);
     }
+    
 }
 
 void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, int *lastN){
@@ -203,16 +212,16 @@ void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, in
         desvZ(cpu, vetMem[cpu->pc].num);
     }else{
         if(!strcmp("PARA", vetMem[cpu->pc].inst)){
-            estado->estado = STOP;
+            //estado->estado = STOP;
             return;
         }else if(!strcmp("LER", vetMem[cpu->pc].inst)){
-            estado->estado = READ;
+            //estado->estado = READ;
             return;
         }else if(!strcmp("GRAVAR", vetMem[cpu->pc].inst)){
-            estado->estado = WRITE;
+            //estado->estado = WRITE;
             return;
         }else{
-            estado->estado = INSTTRUCTILEGAL;
+            //estado->estado = INSTTRUCTILEGAL;
             return;
         }
     }
@@ -401,20 +410,20 @@ int gerarInterrupcao(TIMER_t *timer){
 }
 
 //Interrupções
-void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor){
+void tratarInterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor, TIMER_t *timer){
     if(estado->estado == WRITE){
         gravacaoES(cpu);
-        bloquerProcesso(descritor);
-        escolherProcesso(descritor);
+        bloquearProcesso(descritor, timer);
+        escolherProcesso(descritor, estado);
     }else if(estado->estado == READ){
         leituraES(cpu);
-        bloquerProcesso(descritor);
-        escolherProcesso(descritor);
+        bloquearProcesso(descritor, timer);
+        escolherProcesso(descritor, estado);
     }else if(estado->estado == STOP){
-        bloquerProcesso(descritor);
-        escolherProcesso(descritor);
+        bloquearProcesso(descritor, timer);
+        escolherProcesso(descritor, estado);
     }else if(estado->estado == MEMORYVIOLATION){
-        escolherProcesso(descritor);
+        escolherProcesso(descritor, estado);
     }else if(estado->estado == DORMINDO){
         sleep(estado);
         //setarAcordar();
@@ -423,6 +432,7 @@ void tratarinterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor){
 //Descritor de processos
 void iniciarTabelaDeProcessos(DESCRITOR_t *descritor){
     descritor->ultimaPos = 0;
+    descritor->processoEmExec = 0;
 }
 
 void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prioridade){
@@ -431,24 +441,31 @@ void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prior
     descritor->ultimaPosMemoria[descritor->ultimaPos] = posicao;
     descritor->tempoDeExec[descritor->ultimaPos] = 0;
     descritor->bloqueado[descritor->ultimaPos] = false;
+    descritor->finalizado[descritor->ultimaPos] = false;
     descritor->ultimaPos++;
 }
 
-int escolherProcesso(DESCRITOR_t *descritor){
-    int i = 0, escolhido;
+int escolherProcesso(DESCRITOR_t *descritor, ESTADO_t *estado){
+    int i = 0, j = 0, escolhido = MEMORYVIOLATION;
     
-    escolhido = descritor->posicao;
+
+    while(escolhido == MEMORYVIOLATION){
+        if(descritor->finalizado[j] == false){
+            escolhido = j;
+        }
+        j++;
+        if(j > descritor->ultimaPos){
+            return NULL;
+        }
+    }
     while(i < descritor->ultimaPos){
-        if(escolhido > descritor->prioridade[i])
+        if(descritor->prioridade[escolhido] > descritor->prioridade[i] && descritor->finalizado[i] != false)
             escolhido = descritor->posicao[i];
         i++;   
     }
-    i = 0;
-    while(i < descritor->ultimaPos){
-        if(escolhido == descritor->posicao[i])
-            descritor->processoEmExec = i;
-    }
-    return escolhido;
+    estado->estado = NORMAL;
+    descritor->processoEmExec = escolhido;
+    return descritor->ultimaPosMemoria[escolhido];
 }
 
 void recalcularPrioridade(DESCRITOR_t *descritor){
@@ -476,6 +493,6 @@ void recalcularPrioridade(DESCRITOR_t *descritor){
 
 void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t * timer){
     descritor->bloqueado[descritor->processoEmExec] = true;
-    descritor->bloqueioDados[descritor->processoEmExec] =  timer->timer;
-    descritor->bloqueado[descritor->processoEmExec] = timer->timer + 5;
+    descritor->bloqueioDados[descritor->processoEmExec].tempoDeBloqueio = timer->timer;
+    descritor->bloqueioDados[descritor->processoEmExec].tempoADesbloquear = timer->timer + 5;
 }
