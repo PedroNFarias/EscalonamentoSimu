@@ -152,8 +152,12 @@ int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq, DESCRITOR_t *des
         printf("error to load file\n");
     }else {
         while(fscanf(file,"%s %i", inst, &n)!= EOF){
+            if(!strcmp("DESVZ", inst)){
+                vetMem[i].num = n + *lastVetMem;//arrumar
+            }else{
+                vetMem[i].num = n;
+            }
             strcpy(vetMem[i].inst,inst);
-            vetMem[i].num = n;
             i++;
         }
     fclose(file);
@@ -212,16 +216,16 @@ void lerCom(CPU_t *cpu, POSMEMORIA_t *vetMem, ESTADO_t *estado, int *vetData, in
         desvZ(cpu, vetMem[cpu->pc].num);
     }else{
         if(!strcmp("PARA", vetMem[cpu->pc].inst)){
-            //estado->estado = STOP;
+            estado->estado = STOP;
             return;
-        }else if(!strcmp("LER", vetMem[cpu->pc].inst)){
-            //estado->estado = READ;
+        }else if(!strcmp("LE", vetMem[cpu->pc].inst)){
+            estado->estado = READ;
             return;
-        }else if(!strcmp("GRAVAR", vetMem[cpu->pc].inst)){
-            //estado->estado = WRITE;
+        }else if(!strcmp("GRAVA", vetMem[cpu->pc].inst)){
+            estado->estado = WRITE;
             return;
         }else{
-            //estado->estado = INSTTRUCTILEGAL;
+            estado->estado = INSTTRUCTILEGAL;
             return;
         }
     }
@@ -429,6 +433,7 @@ void tratarInterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor, TIM
         //setarAcordar();
     }
 }
+
 //Descritor de processos
 void iniciarTabelaDeProcessos(DESCRITOR_t *descritor){
     descritor->ultimaPos = 0;
@@ -447,7 +452,7 @@ void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prior
 
 int escolherProcesso(DESCRITOR_t *descritor, ESTADO_t *estado){
     int i = 0, j = 0, escolhido = MEMORYVIOLATION;
-    
+    printf("Escolhendo processo");
 
     while(escolhido == MEMORYVIOLATION){
         if(descritor->finalizado[j] == false){
@@ -463,6 +468,7 @@ int escolherProcesso(DESCRITOR_t *descritor, ESTADO_t *estado){
             escolhido = descritor->posicao[i];
         i++;   
     }
+
     estado->estado = NORMAL;
     descritor->processoEmExec = escolhido;
     return descritor->ultimaPosMemoria[escolhido];
