@@ -99,7 +99,8 @@ void iniciarTabelaDeProcessos(DESCRITOR_t *descritor);
 void adicionarTabelaDeProcessos(DESCRITOR_t *descritor, int posicao, float prioridade);
 void recalcularPrioridade(DESCRITOR_t *decritor);
 int escolherProcesso(DESCRITOR_t *descritor, ESTADO_t *estado);
-void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t *timer);
+void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t *timer, int tempo);
+void acordar(DESCRITOR_t *descritor, TIMER_t *timer);
 
 //alterar o conteúdo da memória de programa (recebe um vetor de strings)
 //alterar o conteúdo da memória de dados (recebe um vetor de inteiros, que é alterado pela execução das instruções)
@@ -153,7 +154,7 @@ int readFile (POSMEMORIA_t *vetMem, int *lastVetMem, char *arq, DESCRITOR_t *des
     }else {
         while(fscanf(file,"%s %i", inst, &n)!= EOF){
             if(!strcmp("DESVZ", inst)){
-                vetMem[i].num = n + *lastVetMem;//arrumar
+                vetMem[i].num = n + *lastVetMem;
             }else{
                 vetMem[i].num = n;
             }
@@ -417,21 +418,22 @@ int gerarInterrupcao(TIMER_t *timer){
 void tratarInterrupcao(CPU_t *cpu, ESTADO_t *estado, DESCRITOR_t *descritor, TIMER_t *timer){
     if(estado->estado == WRITE){
         gravacaoES(cpu);
-        bloquearProcesso(descritor, timer);
-        escolherProcesso(descritor, estado);
+        bloquearProcesso(descritor, timer, WRITE);
+        cpu->pc = escolherProcesso(descritor, estado);
     }else if(estado->estado == READ){
         leituraES(cpu);
-        bloquearProcesso(descritor, timer);
-        escolherProcesso(descritor, estado);
+        bloquearProcesso(descritor, timer, READ);
+        cpu->pc = escolherProcesso(descritor, estado);
     }else if(estado->estado == STOP){
-        bloquearProcesso(descritor, timer);
-        escolherProcesso(descritor, estado);
+        bloquearProcesso(descritor, timer, STOP);
+        cpu->pc = escolherProcesso(descritor, estado);
     }else if(estado->estado == MEMORYVIOLATION){
-        escolherProcesso(descritor, estado);
+        cpu->pc = escolherProcesso(descritor, estado);
     }else if(estado->estado == DORMINDO){
         sleep(estado);
-        //setarAcordar();
+        acordar(descritor, timer);
     }
+    recalcularPrioridade(descritor);
 }
 
 //Descritor de processos
@@ -497,8 +499,19 @@ void recalcularPrioridade(DESCRITOR_t *descritor){
     }
 }
 
-void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t * timer){
+void bloquearProcesso(DESCRITOR_t *descritor, TIMER_t * timer, int tempo){
     descritor->bloqueado[descritor->processoEmExec] = true;
     descritor->bloqueioDados[descritor->processoEmExec].tempoDeBloqueio = timer->timer;
     descritor->bloqueioDados[descritor->processoEmExec].tempoADesbloquear = timer->timer + 5;
+}
+
+void acordar(DESCRITOR_t *descritor, TIMER_t *timer){
+    int i = 0;
+
+    while(i < descritor->ultimaPos){
+        if(descritor->bloqueioDados[i].tempoADesbloquear < timer->timer){
+            descritor->bloqueado[i] = false;
+        }
+        i++;
+    }
 }
