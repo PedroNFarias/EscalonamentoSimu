@@ -1,3 +1,9 @@
 
 src/funções.exe
 src/funções.o
+bin/Debug/SO.exe
+obj/Debug/src/funcs.o
+obj/Debug/src/funções.o
+obj/Debug/src/main.o
+SO.depend
+SO.layout
